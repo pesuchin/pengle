@@ -5,8 +5,11 @@ from pathlib import Path
 from contextlib import contextmanager
 import category_encoders as ce
 import pandas as pd
+import numpy as np
+from joblib import Parallel, delayed
 
 
+# 参考: https://amalog.hateblo.jp/entry/kaggle-feature-management
 @contextmanager
 def timer(name):
     t0 = time.time()
@@ -180,3 +183,48 @@ class LeaveOneOutEncoder(Feature):
         for column in encoded_train.columns:
             self.train[column + '_LeaveOneOutEncoder'] = encoded_train[column]
             self.test[column + '_LeaveOneOutEncoder'] = encoded_test[column]
+
+
+class FundamentalStatistics(Feature):
+    def create_features(self, train_dataset, test_dataset, group_columns, agg_columns):
+        agg_funcs = ["min", "max", "sum", "var", "std", "mean", "count"]
+        grouping_funcs = {column: agg_funcs for column in agg_columns}
+        train = train_dataset.groupby(group_columns).agg(agg_columns)
+        test = test_dataset.groupby(group_columns).agg(agg_columns)
+        for column in train.columns:
+            self.train[column] = train[column]
+            self.test[column] = test[column]
+
+
+# TODO:によるエンコーディングの処理(Projecting to a circle)
+class MonthEncoding(Feature):
+    def create_features(self, train_dataset, test_dataset, columns):
+        for column in columns:
+            series_train = pd.to_datetime(train_dataset.data[column])
+            series_test = pd.to_datetime(test_dataset.data[column])
+            self.train[column + '_cos'] = np.cos(2 * np.pi * series_train.dt.month / series_train.dt.month.max())
+            self.train[column + '_sin'] = np.sin(2 * np.pi * series_train.dt.month / series_train.dt.month.max())
+            self.test[column + '_cos'] = np.cos(2 * np.pi * series_test.month.day / series_test.dt.month.max())
+            self.test[column + '_sin'] = np.sin(2 * np.pi * series_test.month.day / series_test.dt.month.max())
+
+
+class DayEncoding(Feature):
+    def create_features(self, train_dataset, test_dataset, columns):
+        for column in columns:
+            series_train = pd.to_datetime(train_dataset.data[column])
+            series_test = pd.to_datetime(test_dataset.data[column])
+            self.train[column + '_cos'] = np.cos(2 * np.pi * series_train.dt.day / series_train.dt.day.max())
+            self.train[column + '_sin'] = np.sin(2 * np.pi * series_train.dt.day / series_train.dt.day.max())
+            self.test[column + '_cos'] = np.cos(2 * np.pi * series_test.dt.day / series_test.dt.day.max())
+            self.test[column + '_sin'] = np.sin(2 * np.pi * series_test.dt.day / series_test.dt.day.max())
+
+
+class TimeEncoding(Feature):
+    def create_features(self, train_dataset, test_dataset, columns):
+        for column in columns:
+            series_train = pd.to_datetime(train_dataset.data[column])
+            series_test = pd.to_datetime(test_dataset.data[column])
+            self.train[column + '_cos'] = np.cos(2 * np.pi * series_train.dt.hour / series_train.dt.hour.max())
+            self.train[column + '_sin'] = np.sin(2 * np.pi * series_train.dt.hour / series_train.dt.hour.max())
+            self.test[column + '_cos'] = np.cos(2 * np.pi * series_test.dt.hour / series_test.dt.hour.max())
+            self.test[column + '_sin'] = np.sin(2 * np.pi * series_test.dt.hour / series_test.dt.hour.max())
