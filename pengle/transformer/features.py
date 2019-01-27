@@ -178,6 +178,46 @@ class TargetEncoder(Feature):
             self.test[column + '_TargetEncoder'] = encoded_test[column]
 
 
+class TargetStatisticsEncoder(Feature):
+    def create_features(self, train_dataset, test_dataset, groupby_keys, agg_names):
+        new_columns_dict = {}
+        # Dataset型のdataにはtargetのカラムを入れていないため
+        train_dataset.data[train_dataset.target_column] = train_dataset.target
+        # Target Encodingのための計算部分
+        for column in groupby_keys:
+            new_columns_dict[column] = [column]
+            train = pd.DataFrame()
+            train[column] = train_dataset.data[column]
+            for agg_name in agg_names:
+                new_column_name = 'target_enc_' + agg_name + '_' + column
+                new_columns_dict[column].append(new_column_name)
+                train[new_column_name] = train_dataset.data \
+                                                      .groupby(column)[train_dataset.target_column] \
+                                                      .transform(agg_name)
+            self.train = pd.concat([self.train, train], axis=1)
+
+        # テストデータへの反映部分
+        for column in groupby_keys:
+            # 列をcolumnがgroupbyのキーの時に作成したもののみに絞りつつ、LEFT OUTER JOINするための処理
+            test = pd.merge(test_dataset.data[groupby_keys],
+                            self.train[new_columns_dict[column]].drop_duplicates(subset=column),
+                            on=column, how='left')
+            self.test = pd.concat([self.test, test], axis=1)
+
+        # 元々のカテゴリデータの情報は不要のため
+        self.train = self.train.drop(groupby_keys, axis=1)
+        self.test = self.test.drop(groupby_keys, axis=1)
+
+    def run(self, train_dataset, test_dataset, groupby_keys,
+            agg_names=['mean', 'max', 'var', 'std', 'median']):
+        with timer(self.name):
+            self.create_features(train_dataset, test_dataset, groupby_keys, agg_names)
+            prefix = self.prefix + '_' if self.prefix else ''
+            suffix = '_' + self.suffix if self.suffix else ''
+            self.train.columns = [prefix + column + suffix for column in self.train.columns]
+            self.test.columns = [prefix + column + suffix for column in self.test.columns]
+        return self
+
 class LeaveOneOutEncoder(Feature):
     def create_features(self, train_dataset, test_dataset, columns):
         encoder = ce.LeaveOneOutEncoder(cols=columns)
