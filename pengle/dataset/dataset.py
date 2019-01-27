@@ -1,13 +1,25 @@
+"""Dataを扱うためのモジュール."""
+
 import os
 import pandas as pd
 import numpy as np
 import feather
 from pathlib import Path
 from sklearn import preprocessing
-import feather 
 
 
 class Dataset(dict):
+    """Datasetを管理するためのクラスで、辞書型のような使い方ができる.
+
+    また、以下のような方法で値を参照できる
+    >>> dataset = Dataset(data='sample')
+    >>> dataset.data
+    'sample'
+
+    Raises:
+        AttributeError -- 存在しない要素にアクセスした時のエラー
+
+    """
 
     def __init__(self, **kwargs):
         super().__init__(kwargs)
@@ -28,7 +40,7 @@ class Dataset(dict):
         pass
 
 
-def load_dataset(file_path, output_dir_path, objective, encode_target=False, target=None, dtypes=None):
+def load_data_and_save_feather(file_path, output_dir_path, dtypes):
     filename, _ = os.path.splitext(os.path.basename(file_path))
     cwd = Path.cwd()
     filename = 'feather_' + filename + '.ftr'
@@ -39,32 +51,59 @@ def load_dataset(file_path, output_dir_path, objective, encode_target=False, tar
     else:
         df = pd.read_csv(file_path, dtype=dtypes)
         feather.write_dataframe(df, feather_path)
+    return df
 
+
+def load_dataset(file_path, output_dir_path, objective,
+                 encode_target=False, target=None, dtypes=None):
+    df = load_data_and_save_feather(file_path, output_dir_path, dtypes)
     df = reduce_mem_usage(df, verbose=True)
 
+    dataset = Dataset(filepath=file_path)
+
     if not target:
-        return Dataset(data=df,
-                       filename=file_path)
+        dataset['data'] = df
+        return dataset
 
     if objective == 'classification':
-        target_names = df[target].unique()
+        target_names = df[target].unique().tolist()
         target_values = df[target].values.tolist()
         if encode_target:
             le = preprocessing.LabelEncoder()
-            target_values = le.fit_transform(target_values)
+            target_values = le.fit_transform(target_values).tolist()
+            classes = {target_values[i]: class_name for i, class_name in enumerate(le.classes_)}
+            dataset['classes'] = classes
+
         df = df.drop(target, axis=1)
+
+        dataset['data'] = df
+        dataset['target_column'] = target
+        dataset['target'] = target_values
+        dataset['target_names'] = target_names
+        return dataset
+
     elif objective == 'regression':
         target_values = df[target].values.tolist()
         df = df.drop(target, axis=1)
-
-    return Dataset(data=df,
-                   target_column=target,
-                   target=target_values,
-                   target_names=target_names,
-                   filename=file_path)
+        dataset['data'] = df
+        dataset['target_column'] = target
+        dataset['target'] = target_values
+        return dataset
 
 
 def load_features(features, dir_path='./output/features/'):
+    """fetherファイルから特徴量を読み込むための関数.
+
+    Arguments:
+        features {list} -- 特徴量の名前の一覧
+
+    Keyword Arguments:
+        dir_path {str} -- ディレクトリパスがデフォルトから変わっていた時にディレクトリパスを指定する (default: {'./output/features/'})
+
+    Returns:
+        X_train {DataFrame} -- 学習用の特徴量
+        X_test {DataFrame} -- テスト用の特徴量
+    """
     cwd = Path.cwd()
     dir_path = cwd / dir_path
     dfs = [feather.read_dataframe((str(dir_path) + f'/{f}_train.ftr')) for f in features]
@@ -75,6 +114,18 @@ def load_features(features, dir_path='./output/features/'):
 
 
 def reduce_mem_usage(df, verbose=True):
+    """DataFrameのメモリ使用量を節約するための関数.
+
+    Arguments:
+        df {DataFrame} -- 対象のDataFrame
+
+    Keyword Arguments:
+        verbose {bool} -- メモリがどれだけ節約できたかを表示 (default: {True})
+
+    Returns:
+        [DataFrame] -- メモリ節約後のDataFrame
+    """
+
     numerics = ['int8', 'int16', 'int32', 'int64', 'float16', 'float32', 'float64']
     start_mem = df.memory_usage(deep=True).sum() / 1024**2    
     for col in df.columns:

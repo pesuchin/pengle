@@ -54,6 +54,29 @@ def train_cv(x, y, lgb_params,
              drop_columns=[],
              categorical_columns=[],
              score_metric='auc'):
+    """Cross Validation用の関数
+
+    Arguments:
+        x {DataFrame} -- 学習用の特徴量のDataFrame
+        y {list} -- 学習用の目的変数のリスト
+        lgb_params {dict} -- lightgbmのパラメータの辞書
+
+    Keyword Arguments:
+        number_of_folds {int} -- StratifiedKFoldのsplitの数 (default: {5})
+        evaluation_metric {str} -- [description] (default: {'auc'})
+        save_feature_importances {bool} -- [description] (default: {True})
+        early_stopping_rounds {int} -- [description] (default: {50})
+        num_round {int} -- [description] (default: {50})
+        random_state {int} -- [description] (default: {19930201})
+        shuffle {bool} -- [description] (default: {True})
+        drop_columns {list} -- [description] (default: {[]})
+        categorical_columns {list} -- [description] (default: {[]})
+        score_metric {str} -- [description] (default: {'auc'})
+
+    Returns:
+        [type] -- [description]
+    """
+
     cross_validator = StratifiedKFold(n_splits=number_of_folds,
                                       random_state=random_state,
                                       shuffle=shuffle)
@@ -61,6 +84,7 @@ def train_cv(x, y, lgb_params,
     validation_scores = []
     models = []
     feature_importance_df = pd.DataFrame()
+    y = np.array(y)
     cv = cross_validator.split(x, y)
     for fold_index, (train_index, validation_index) in enumerate(cv):
         x_train, x_validation = x.iloc[train_index], x.iloc[validation_index]
@@ -91,7 +115,7 @@ def train_cv(x, y, lgb_params,
 
         predictions = model.predict(x_validation, num_iteration=model.best_iteration)
 
-        score = calc_score(y_validation, predictions)
+        score = calc_score(score_metric, y_validation, predictions)
 
         validation_scores.append(score)
 
