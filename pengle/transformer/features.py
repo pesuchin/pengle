@@ -12,6 +12,12 @@ from joblib import Parallel, delayed
 # 参考: https://amalog.hateblo.jp/entry/kaggle-feature-management
 @contextmanager
 def timer(name):
+    """時間を測るためのタイマー関数
+
+    Arguments:
+        name {str} -- クラス名
+    """
+
     t0 = time.time()
     print(f'[{name}] start')
     yield
@@ -19,9 +25,9 @@ def timer(name):
 
 
 class Feature(metaclass=ABCMeta):
-    """Feature Base Class.
+    """特徴量クラスのベースになるクラス。継承して使う。
 
-    Example:
+    例)
     >>> class FamilySize(Feature):
     >>>     def create_features(self):
     >>>         self.train['family_size'] = train['SibSp'] + train['Parch'] + 1
@@ -31,10 +37,8 @@ class Feature(metaclass=ABCMeta):
     Raises:
         NotImplementedError -- 継承して実装されていない場合にraiseされるエラー
 
-    Returns:
-        [type] -- [description]
-
     """
+
     def __init__(self, prefix='', suffix='', dir='./output/features/'):
         self.name = self.__class__.__name__
         self.train = pd.DataFrame()
@@ -185,20 +189,24 @@ class LeaveOneOutEncoder(Feature):
             self.test[column + '_LeaveOneOutEncoder'] = encoded_test[column]
 
 
-class FundamentalStatistics(Feature):
-    def create_features(self, train_dataset, test_dataset, group_columns, agg_columns):
-        agg_funcs = ["min", "max", "sum", "var", "std", "mean", "count"]
-        grouping_funcs = {column: agg_funcs for column in agg_columns}
-        train = train_dataset.groupby(group_columns).agg(agg_columns)
-        test = test_dataset.groupby(group_columns).agg(agg_columns)
-        for column in train.columns:
-            self.train[column] = train[column]
-            self.test[column] = test[column]
-
-
-# TODO:によるエンコーディングの処理(Projecting to a circle)
 class MonthEncoding(Feature):
+    """円上に配置することによる月の情報のエンコーディングの処理(Projecting to a circle).
+
+    例)
+    >>> train, test = MonthEncoding().run(
+                        train_dataset, test_dataset, columns=['a', 'b']
+                      ).save()
+    参考: https://qiita.com/shimopino/items/4ef78aa589e43f315113
+    """
+
     def create_features(self, train_dataset, test_dataset, columns):
+        """特徴量生成関数.
+
+        Arguments:
+            train_dataset {Dataset} -- 訓練データセット
+            test_dataset {Dataset} -- テストデータセット
+            columns {list} -- 特徴抽出を行う対象のクラス
+        """
         for column in columns:
             series_train = pd.to_datetime(train_dataset.data[column])
             series_test = pd.to_datetime(test_dataset.data[column])
@@ -209,7 +217,23 @@ class MonthEncoding(Feature):
 
 
 class DayEncoding(Feature):
+    """円上に配置することによる日の情報のエンコーディングの処理(Projecting to a circle).
+
+    例)
+    >>> train, test = DayEncoding().run(
+                        train_dataset, test_dataset, columns=['a', 'b']
+                      ).save()
+    参考: https://qiita.com/shimopino/items/4ef78aa589e43f315113
+    """
+
     def create_features(self, train_dataset, test_dataset, columns):
+        """特徴量生成関数.
+
+        Arguments:
+            train_dataset {Dataset} -- 訓練データセット
+            test_dataset {Dataset} -- テストデータセット
+            columns {list} -- 特徴抽出を行う対象のクラス
+        """
         for column in columns:
             series_train = pd.to_datetime(train_dataset.data[column])
             series_test = pd.to_datetime(test_dataset.data[column])
@@ -220,7 +244,23 @@ class DayEncoding(Feature):
 
 
 class TimeEncoding(Feature):
+    """円上に配置することによる時間の情報のエンコーディングの処理(Projecting to a circle).
+
+    例)
+    >>> train, test = TimeEncoding().run(
+                        train_dataset, test_dataset, columns=['a', 'b']
+                      ).save()
+    参考: https://qiita.com/shimopino/items/4ef78aa589e43f315113
+    """
+
     def create_features(self, train_dataset, test_dataset, columns):
+        """特徴量生成関数.
+
+        Arguments:
+            train_dataset {Dataset} -- 訓練データセット
+            test_dataset {Dataset} -- テストデータセット
+            columns {list} -- 特徴抽出を行う対象のクラス
+        """
         for column in columns:
             series_train = pd.to_datetime(train_dataset.data[column])
             series_test = pd.to_datetime(test_dataset.data[column])
@@ -228,3 +268,29 @@ class TimeEncoding(Feature):
             self.train[column + '_sin'] = np.sin(2 * np.pi * series_train.dt.hour / series_train.dt.hour.max())
             self.test[column + '_cos'] = np.cos(2 * np.pi * series_test.dt.hour / series_test.dt.hour.max())
             self.test[column + '_sin'] = np.sin(2 * np.pi * series_test.dt.hour / series_test.dt.hour.max())
+
+
+class FundamentalStatistics(Feature):
+    """groupbyからの基本統計量による特徴量生成用のクラス.
+
+    例)
+    >>> train, test = FundamentalStatistics().run(
+                        train_dataset, test_dataset, groupby_keys=['id'], agg_columns=['a', 'b']
+                      ).save()
+    """
+
+    def create_features(self, train_dataset, test_dataset, groupby_keys, agg_columns):
+        """特徴量生成関数.
+
+        Arguments:
+            train_dataset {Dataset} -- 訓練データセット
+            test_dataset {Dataset} -- テストデータセット
+            columns {list} -- 特徴抽出を行う対象のクラス
+        """
+        agg_funcs = ["min", "max", "sum", "var", "std", "mean", "count", "median"]
+        grouping_funcs = {column: agg_funcs for column in agg_columns}
+        train = train_dataset.groupby(groupby_keys).agg(agg_columns)
+        test = test_dataset.groupby(groupby_keys).agg(agg_columns)
+        for column in train.columns:
+            self.train[column] = train[column]
+            self.test[column] = test[column]
