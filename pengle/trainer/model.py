@@ -57,7 +57,7 @@ def train_cv(x, y, lgb_params,
     cross_validator = StratifiedKFold(n_splits=number_of_folds,
                                       random_state=random_state,
                                       shuffle=shuffle)
-    
+
     validation_scores = []
     models = []
     feature_importance_df = pd.DataFrame()
@@ -65,7 +65,7 @@ def train_cv(x, y, lgb_params,
     for fold_index, (train_index, validation_index) in enumerate(cv):
         x_train, x_validation = x.iloc[train_index], x.iloc[validation_index]
         y_train, y_validation = y[train_index], y[validation_index]
-    
+
         if drop_columns:
             x_train.drop(drop_columns, axis=1, inplace=True)
             x_validation.drop(drop_columns, axis=1, inplace=True)
@@ -91,27 +91,7 @@ def train_cv(x, y, lgb_params,
 
         predictions = model.predict(x_validation, num_iteration=model.best_iteration)
 
-        if score_metric == 'auc':
-            false_positive_rate, recall, thresholds = metrics.roc_curve(y_validation, predictions)
-            score = metrics.auc(false_positive_rate, recall)
-        elif score_metric == 'accuracy':
-            predictions = [1 if predictions[i] >= 0.5 else 0 for i in range(len(predictions))]
-            score = metrics.accuracy_score(y_validation, predictions)
-        elif score_metric == 'f1':
-            predictions = [1 if predictions[i] >= 0.5 else 0 for i in range(len(predictions))]
-            score = metrics.f1_score(y_validation, predictions)
-        elif score_metric == 'precision':
-            predictions = [1 if predictions[i] >= 0.5 else 0 for i in range(len(predictions))]
-            score = metrics.precision_score(y_validation, predictions)
-        elif score_metric == 'recall':
-            predictions = [1 if predictions[i] >= 0.5 else 0 for i in range(len(predictions))]
-            score = metrics.recall_score(y_validation, predictions)
-        elif score_metric == 'mae':
-            score = metrics.mean_absolute_error(y_validation, predictions)
-        elif score_metric == 'mse':
-            score = metrics.mean_squared_error(y_validation, predictions)
-        elif score_metric == 'msle':
-            score = metrics.mean_squared_log_error(y_validation, predictions)
+        score = calc_score(y_validation, predictions)
 
         validation_scores.append(score)
 
@@ -122,34 +102,64 @@ def train_cv(x, y, lgb_params,
         feature_importance_df = pd.concat([feature_importance_df, fold_importance_df], axis=0)
 
     if save_feature_importances:
-        cols = (feature_importance_df[["feature", "importance"]]
-                .groupby("feature")
-                .mean()
-                .sort_values(by="importance", ascending=False)[:1000].index)
-
-        best_features = feature_importance_df.loc[feature_importance_df.feature.isin(cols)]
-
-        plt.figure(figsize=(14, 25))
-        sns.barplot(x="importance",
-                    y="feature",
-                    data=best_features.sort_values(by="importance",
-                                                   ascending=False))
-        plt.title('LightGBM Features (avg over folds)')
-        plt.tight_layout()
-        plt.savefig('lgbm_importances.png')
-
-        # mean_gain = feature_importances[['gain', 'feature']].groupby('feature').mean()
-        # feature_importances['mean_gain'] = feature_importances['feature'].map(mean_gain['gain'])
-        #
-        # temp = feature_importances.sort_values('mean_gain', ascending=False)
-        best_features.sort_values(by="importance", ascending=False) \
-            .groupby("feature") \
-            .mean() \
-            .sort_values(by="importance", ascending=False) \
-            .to_csv('feature_importances_new.csv', index=True)
+        save_importance_graph(feature_importance_df)
 
     score = sum(validation_scores) / len(validation_scores)
     return models, score
+
+
+def calc_score(score_metric, y, predictions):
+    if score_metric == 'auc':
+        false_positive_rate, recall, thresholds = metrics.roc_curve(y, predictions)
+        score = metrics.auc(false_positive_rate, recall)
+    elif score_metric == 'accuracy':
+        predictions = [1 if predictions[i] >= 0.5 else 0 for i in range(len(predictions))]
+        score = metrics.accuracy_score(y, predictions)
+    elif score_metric == 'f1':
+        predictions = [1 if predictions[i] >= 0.5 else 0 for i in range(len(predictions))]
+        score = metrics.f1_score(y, predictions)
+    elif score_metric == 'precision':
+        predictions = [1 if predictions[i] >= 0.5 else 0 for i in range(len(predictions))]
+        score = metrics.precision_score(y, predictions)
+    elif score_metric == 'recall':
+        predictions = [1 if predictions[i] >= 0.5 else 0 for i in range(len(predictions))]
+        score = metrics.recall_score(y, predictions)
+    elif score_metric == 'mae':
+        score = metrics.mean_absolute_error(y, predictions)
+    elif score_metric == 'mse':
+        score = metrics.mean_squared_error(y, predictions)
+    elif score_metric == 'msle':
+        score = metrics.mean_squared_log_error(y, predictions)
+    return score
+
+
+def save_importance_graph(feature_importance_df):
+    cols = (feature_importance_df[["feature", "importance"]]
+            .groupby("feature")
+            .mean()
+            .sort_values(by="importance", ascending=False)[:1000].index)
+
+    best_features = feature_importance_df.loc[feature_importance_df.feature.isin(cols)]
+
+    plt.figure(figsize=(14, 25))
+    sns.barplot(x="importance",
+                y="feature",
+                data=best_features.sort_values(by="importance",
+                                                ascending=False))
+    plt.title('LightGBM Features (avg over folds)')
+    plt.tight_layout()
+    plt.savefig('lgbm_importances.png')
+
+    # mean_gain = feature_importances[['gain', 'feature']].groupby('feature').mean()
+    # feature_importances['mean_gain'] = feature_importances['feature'].map(mean_gain['gain'])
+    #
+    # temp = feature_importances.sort_values('mean_gain', ascending=False)
+    best_features.sort_values(by="importance", ascending=False) \
+        .groupby("feature") \
+        .mean() \
+        .sort_values(by="importance", ascending=False) \
+        .to_csv('feature_importances_new.csv', index=True)
+    return best_features
 
 
 def train(x, y, lgb_params,
@@ -204,6 +214,7 @@ def train_and_predict_test(X, y, X_test, lgb_params, model_name, id_col, predict
         X_test.drop(drop_columns, axis=1, inplace=True)
 
     x_train_columns = X_train.columns
+
     train_data = lgb.Dataset(X_train,
                              label=y_train,
                              categorical_feature=categorical_columns)
@@ -224,6 +235,7 @@ def train_and_predict_test(X, y, X_test, lgb_params, model_name, id_col, predict
     predictions = model.predict(X_test, num_iteration=model.best_iteration)
     if predict_method == 'binary':
         predictions = [1 if predictions[i] >= 0.5 else 0 for i in range(len(predictions))]
+
     df_submit = pd.DataFrame()
     df_submit[id_col.name] = id_col
     df_submit[predict_col_name] = predictions
