@@ -103,6 +103,17 @@ class BaseNEncoder(Feature):
             self.test[column + '_BaseNEncoder'] = encoded_test[column]
 
 
+class LeaveOneOutEncoder(Feature):
+    def create_features(self, train_dataset, test_dataset, columns):
+        encoder = ce.LeaveOneOutEncoder(cols=columns)
+        encoder.fit(train_dataset.data[columns], train_dataset.target)
+        encoded_train = encoder.transform(train_dataset.data[columns])
+        encoded_test = encoder.transform(test_dataset.data[columns])
+        for column in encoded_train.columns:
+            self.train[column + '_LeaveOneOutEncoder'] = encoded_train[column]
+            self.test[column + '_LeaveOneOutEncoder'] = encoded_test[column]
+
+
 class TargetEncoder(Feature):
     def create_features(self, train_dataset, test_dataset, columns):
         encoder = ce.TargetEncoder(cols=columns)
@@ -115,6 +126,13 @@ class TargetEncoder(Feature):
 
 
 class TargetStatisticsEncoder(Feature):
+    """指定したcolumnのそれぞれでgroupbyした時の目的変数の基本統計量を算出する特徴量.
+
+    >>> train, test = TargetStatisticsEncoder().fit(
+                        train_dataset, test_dataset, groupby_key=['a', 'b'], agg_names=['mean']
+                      ).transform()
+    """
+
     def create_features(self, train_dataset, test_dataset, groupby_keys, agg_names):
         new_columns_dict = {}
         # Dataset型のdataにはtargetのカラムを入れていないため
@@ -154,16 +172,6 @@ class TargetStatisticsEncoder(Feature):
             self.test.columns = [prefix + column + suffix for column in self.test.columns]
         return self
 
-class LeaveOneOutEncoder(Feature):
-    def create_features(self, train_dataset, test_dataset, columns):
-        encoder = ce.LeaveOneOutEncoder(cols=columns)
-        encoder.fit(train_dataset.data[columns], train_dataset.target)
-        encoded_train = encoder.transform(train_dataset.data[columns])
-        encoded_test = encoder.transform(test_dataset.data[columns])
-        for column in encoded_train.columns:
-            self.train[column + '_LeaveOneOutEncoder'] = encoded_train[column]
-            self.test[column + '_LeaveOneOutEncoder'] = encoded_test[column]
-
 
 class MonthEncoding(Feature):
     """円上に配置することによる月の情報のエンコーディングの処理(Projecting to a circle).
@@ -188,8 +196,8 @@ class MonthEncoding(Feature):
             series_test = pd.to_datetime(test_dataset.data[column])
             self.train[column + '_cos'] = np.cos(2 * np.pi * series_train.dt.month / series_train.dt.month.max())
             self.train[column + '_sin'] = np.sin(2 * np.pi * series_train.dt.month / series_train.dt.month.max())
-            self.test[column + '_cos'] = np.cos(2 * np.pi * series_test.month.day / series_test.dt.month.max())
-            self.test[column + '_sin'] = np.sin(2 * np.pi * series_test.month.day / series_test.dt.month.max())
+            self.test[column + '_cos'] = np.cos(2 * np.pi * series_test.dt.month / series_test.dt.month.max())
+            self.test[column + '_sin'] = np.sin(2 * np.pi * series_test.dt.month / series_test.dt.month.max())
 
 
 class DayEncoding(Feature):
@@ -244,29 +252,3 @@ class TimeEncoding(Feature):
             self.train[column + '_sin'] = np.sin(2 * np.pi * series_train.dt.hour / series_train.dt.hour.max())
             self.test[column + '_cos'] = np.cos(2 * np.pi * series_test.dt.hour / series_test.dt.hour.max())
             self.test[column + '_sin'] = np.sin(2 * np.pi * series_test.dt.hour / series_test.dt.hour.max())
-
-
-class FundamentalStatistics(Feature):
-    """groupbyからの基本統計量による特徴量生成用のクラス.
-
-    例)
-    >>> train, test = FundamentalStatistics().fit(
-                        train_dataset, test_dataset, groupby_keys=['id'], agg_columns=['a', 'b']
-                      ).transform()
-    """
-
-    def create_features(self, train_dataset, test_dataset, groupby_keys, agg_columns):
-        """特徴量生成関数.
-
-        Arguments:
-            train_dataset {Dataset} -- 訓練データセット
-            test_dataset {Dataset} -- テストデータセット
-            columns {list} -- 特徴抽出を行う対象のクラス
-        """
-        agg_funcs = ["min", "max", "sum", "var", "std", "mean", "count", "median"]
-        grouping_funcs = {column: agg_funcs for column in agg_columns}
-        train = train_dataset.groupby(groupby_keys).agg(agg_columns)
-        test = test_dataset.groupby(groupby_keys).agg(agg_columns)
-        for column in train.columns:
-            self.train[column] = train[column]
-            self.test[column] = test[column]

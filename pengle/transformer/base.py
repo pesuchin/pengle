@@ -59,9 +59,10 @@ class Feature(metaclass=ABCMeta):
     def create_features(self):
         raise NotImplementedError
 
-    def transform(self):
-        self.train.to_feather(str(self.train_path))
-        self.test.to_feather(str(self.test_path))
+    def transform(self, save=True):
+        if save:
+            self.train.to_feather(str(self.train_path))
+            self.test.to_feather(str(self.test_path))
         return self.train, self.test
 
     def fit_transform(self, train_dataset, test_dataset, columns=[]):
