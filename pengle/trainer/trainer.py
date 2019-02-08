@@ -8,9 +8,10 @@ class Pipeline():
         Arguments:
             steps {list} -- 特徴量操作の一覧
 
+        >>> columns = ['column1', 'column2']
         >>> steps = [
-        >>>     BackwardDifferenceEncoder(),
-        >>>     HelmertEncoder()
+        >>>     BackwardDifferenceEncoder(columns),
+        >>>     HelmertEncoder(columns)
         >>> ]
         """
         self.steps = steps
