@@ -46,9 +46,9 @@ class Feature(metaclass=ABCMeta):
         self.prefix = prefix
         self.suffix = suffix
 
-    def fit(self, train_dataset, test_dataset, columns=[]):
+    def fit(self, train_dataset, test_dataset):
         with timer(self.name):
-            self.create_features(train_dataset, test_dataset, columns=columns)
+            self.create_features(train_dataset, test_dataset)
             prefix = self.prefix + '_' if self.prefix else ''
             suffix = '_' + self.suffix if self.suffix else ''
             self.train.columns = [prefix + column + suffix for column in self.train.columns]

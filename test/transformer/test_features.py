@@ -26,9 +26,8 @@ def test_target_statistics_encoder():
                                               [2, 1]], columns=['category1', 'category2']),
                            target=[0, 2, 3, 4, 5],
                            target_column='target')
-    train, test = TargetStatisticsEncoder().fit(train_dataset,
-                                                test_dataset,
-                                                groupby_keys=['category1', 'category2']).transform(save=False)
+    train, test = TargetStatisticsEncoder(groupby_keys=['category1', 'category2']).fit(
+        train_dataset, test_dataset).transform(save=False)
     df_expected = pd.DataFrame([[2.25, 4, 2.916667, 1.707825, 2.5, 2.333333, 5, 6.333333, 2.516611, 2.0],
                                 [2.25, 4, 2.916667, 1.707825, 2.5, 2.333333, 5, 6.333333, 2.516611, 2.0],
                                 [2.25, 4, 2.916667, 1.707825, 2.5, 3.500000, 4, 0.500000, 0.707107, 3.5],
@@ -93,7 +92,7 @@ def test_month_encoding():
                                 [18.660254e-01, -5.000000e-01, 1.0, -1.133108e-15],
                                 [11.000000e+00, -2.449294e-16, 1.0, -1.133108e-15]],
                                columns=['date1_cos', 'date1_sin', 'date2_cos', 'date2_sin'])
-    train, test = MonthEncoding().fit(train_dataset, test_dataset, columns=['date1', 'date2']).transform(save=False)
+    train, test = MonthEncoding(columns=['date1', 'date2']).fit(train_dataset, test_dataset).transform(save=False)
     # 計算誤差があるため
     assert (train - df_expected).sum().sum() < 0.001
     assert (test - df_expected).sum().sum() < 0.001
@@ -160,7 +159,7 @@ def test_day_encoding():
                                               ['2017-11-28 12:24:00', '2017-11-01 12:24:00'],
                                               ['2017-11-29 12:24:00', '2017-11-01 12:24:00'],
                                               ['2017-11-30 12:24:00', '2017-11-01 12:24:00']], columns=['date1', 'date2']), target=None)
-    train, test = DayEncoding().fit(train_dataset, test_dataset, columns=['date1', 'date2']).transform(save=False)
+    train, test = DayEncoding(columns=['date1', 'date2']).fit(train_dataset, test_dataset).transform(save=False)
     df_expected = pd.DataFrame([[0.978148, 2.079117e-01, 1.0, -2.449294e-16],
                                 [0.913545, 4.067366e-01, 1.0, -2.449294e-16],
                                 [0.809017, 5.877853e-01, 1.0, -2.449294e-16],
@@ -236,6 +235,6 @@ def test_time_encoding():
                                 [8.660254e-01, -5.000000e-01, 1.0, -2.449294e-16],
                                 [1.000000e+00, -2.449294e-16, 1.0, -2.449294e-16]],
                                columns=['date1_cos', 'date1_sin', 'date2_cos', 'date2_sin'])
-    train, test = TimeEncoding().fit(train_dataset, test_dataset, columns=['date1', 'date2']).transform(save=False)
+    train, test = TimeEncoding(columns=['date1', 'date2']).fit(train_dataset, test_dataset).transform(save=False)
     assert_frame_equal(train, df_expected)
     assert_frame_equal(test, df_expected)
