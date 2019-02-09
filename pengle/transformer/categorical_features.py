@@ -3,6 +3,7 @@ from pengle.dataset.dataset import Dataset
 from pengle.transformer.base import Feature, timer
 import pandas as pd
 import numpy as np
+import copy
 
 
 class BackwardDifferenceEncoder(Feature):
@@ -72,7 +73,7 @@ class OneHotEncoder(Feature):
         self.columns = columns
 
     def create_features(self, train_dataset, test_dataset):
-        encoder = ce.OneHotEncoder(cols=columns)
+        encoder = ce.OneHotEncoder(cols=self.columns)
         encoder.fit(train_dataset.data[self.columns], train_dataset.target)
         encoded_train = encoder.transform(train_dataset.data[self.columns])
         encoded_test = encoder.transform(test_dataset.data[self.columns])
@@ -269,19 +270,24 @@ class TargetStatisticsEncoder(Feature):
         self.agg_names = agg_names
 
     def create_features(self, train_dataset, test_dataset):
+        self.train = pd.DataFrame()
+        self.test = pd.DataFrame()
+
         new_columns_dict = {}
+        tmp_dataset = copy.deepcopy(train_dataset)
         # Dataset型のdataにはtargetのカラムを入れていないため
-        train_dataset.data[train_dataset.target_column] = train_dataset.target
+        tmp_dataset.data[tmp_dataset.target_column] = tmp_dataset.target
+        
         # Target Encodingのための計算部分
         for column in self.groupby_keys:
             new_columns_dict[column] = [column]
             train = pd.DataFrame()
-            train[column] = train_dataset.data[column]
+            train[column] = tmp_dataset.data[column]
             for agg_name in self.agg_names:
                 new_column_name = 'target_enc_' + agg_name + '_' + column
                 new_columns_dict[column].append(new_column_name)
-                train[new_column_name] = train_dataset.data \
-                                                      .groupby(column)[train_dataset.target_column] \
+                train[new_column_name] = tmp_dataset.data \
+                                                      .groupby(column)[tmp_dataset.target_column] \
                                                       .transform(agg_name)
             self.train = pd.concat([self.train, train], axis=1)
 

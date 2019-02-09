@@ -40,6 +40,18 @@ class Dataset(dict):
         pass
 
 
+def split_dataset(dataset, train_size):
+    train, valid = dataset.data.iloc[:train_size, :].reset_index(
+        drop=True), dataset.data.iloc[train_size:, :].reset_index(drop=True)
+    new_train_dataset = Dataset(data=train,
+                                target_column=dataset.target_column,
+                                target=dataset.target[:train_size])
+    new_valid_dataset = Dataset(data=valid,
+                                target_column=dataset.target_column,
+                                target=dataset.target[train_size:])
+    return new_train_dataset, new_valid_dataset
+
+
 def load_data_and_save_feather(file_path, output_dir_path, dtypes):
     filename, _ = os.path.splitext(os.path.basename(file_path))
     cwd = Path.cwd()
