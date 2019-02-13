@@ -187,88 +187,6 @@ def save_importance_graph(feature_importance_df):
     return best_features
 
 
-def train(x, y, lgb_params,
-          train_size=100,
-          early_stopping_rounds=50,
-          num_round=50,
-          random_state=19930201,
-          drop_columns=[],
-          categorical_columns=[]):
-    x_train, x_validation = x.iloc[:train_size, :], x.iloc[train_size:, :]
-    y_train, y_validation = y[:train_size], y[train_size:]
-
-    if drop_columns:
-        x_train.drop(drop_columns, axis=1, inplace=True)
-        x_validation.drop(drop_columns, axis=1, inplace=True)
-
-    x_train_columns = x_train.columns
-    trn_data = lgb.Dataset(x_train,
-                           label=y_train,
-                           categorical_feature=categorical_columns)
-    del x_train
-    del y_train
-    val_data = lgb.Dataset(x_validation,
-                           label=y_validation,
-                           categorical_feature=categorical_columns)
-    model = lgb.train(lgb_params,
-                      trn_data,
-                      num_round,
-                      valid_sets=[trn_data, val_data],
-                      verbose_eval=100,
-                      early_stopping_rounds=early_stopping_rounds
-                      )
-
-    predictions = model.predict(x_validation, num_iteration=model.best_iteration)
-    save_model(model, './output/models/')
-
-
-def train_and_predict_test(X, y, df_test, lgb_params, model_name, id_col, predict_col_name,
-                           predict_method='binary',
-                           train_size=600,
-                           early_stopping_rounds=50,
-                           num_round=50,
-                           random_state=19930201,
-                           drop_columns=[],
-                           categorical_columns=[]):
-    X_train, X_validation = X.iloc[:train_size, :], X.iloc[train_size:, :]
-    y_train, y_validation = y[:train_size], y[train_size:]
-    X_test = df_test.copy()
-
-    if drop_columns:
-        X_train.drop(drop_columns, axis=1, inplace=True)
-        X_validation.drop(drop_columns, axis=1, inplace=True)
-        X_test.drop(drop_columns, axis=1, inplace=True)
-
-    x_train_columns = X_train.columns
-
-    train_data = lgb.Dataset(X_train,
-                             label=y_train,
-                             categorical_feature=categorical_columns)
-    del X_train
-    del y_train
-    val_data = lgb.Dataset(X_validation,
-                           label=y_validation,
-                           categorical_feature=categorical_columns)
-
-    model = lgb.train(lgb_params,
-                      train_data,
-                      num_round,
-                      valid_sets=[train_data, val_data],
-                      verbose_eval=100,
-                      early_stopping_rounds=early_stopping_rounds
-                      )
-
-    predictions = model.predict(X_test, num_iteration=model.best_iteration)
-    if predict_method == 'binary':
-        predictions = [1 if predictions[i] >= 0.5 else 0 for i in range(len(predictions))]
-
-    df_submit = pd.DataFrame()
-    df_submit[id_col.name] = id_col
-    df_submit[predict_col_name] = predictions
-    save_model(model, './output/models/' + model_name + '_submit.ftr')
-    output_csv(df_submit, './output/submits/' + model_name + '_submit.csv')
-
-
 def train_and_predict_test_for_pipeline(
         train_dataset, test_dataset, feature_pipeline, lgb_params, model_name, id_col, predict_col_name,
         predict_method='binary',
@@ -286,7 +204,7 @@ def train_and_predict_test_for_pipeline(
     y_validation = X_valid_dataset.target
 
     print('test features...')
-    X_train, X_test = feature_pipeline.run(X_train_dataset, test_dataset)
+    _, X_test = feature_pipeline.run(train_dataset, test_dataset)
 
     if drop_columns:
         X_train.drop(drop_columns, axis=1, inplace=True)
