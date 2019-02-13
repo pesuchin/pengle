@@ -6,6 +6,7 @@ import lightgbm as lgb
 from sklearn import metrics
 from sklearn.model_selection import StratifiedKFold
 from pengle.storage.storage import save_model, output_csv
+from pengle.dataset.dataset import split_dataset
 
 
 def get_default_parametor(objective):
@@ -44,10 +45,10 @@ def get_default_parametor(objective):
 
 
 def train_cv(x, y, lgb_params,
-             number_of_folds=5, 
-             evaluation_metric='auc', 
-             save_feature_importances=True, 
-             early_stopping_rounds=50, 
+             number_of_folds=5,
+             evaluation_metric='auc',
+             save_feature_importances=True,
+             early_stopping_rounds=50,
              num_round=50,
              random_state=19930201,
              shuffle=True,
@@ -95,12 +96,12 @@ def train_cv(x, y, lgb_params,
             x_validation.drop(drop_columns, axis=1, inplace=True)
 
         x_train_columns = x_train.columns
-        trn_data = lgb.Dataset(x_train,
+        trn_data = lgb.Dataset(x_train.values,
                                label=y_train,
                                categorical_feature=categorical_columns)
         del x_train
         del y_train
-        val_data = lgb.Dataset(x_validation,
+        val_data = lgb.Dataset(x_validation.values,
                                label=y_validation,
                                categorical_feature=categorical_columns)
         model = lgb.train(lgb_params,
@@ -169,7 +170,7 @@ def save_importance_graph(feature_importance_df):
     sns.barplot(x="importance",
                 y="feature",
                 data=best_features.sort_values(by="importance",
-                                                ascending=False))
+                                               ascending=False))
     plt.title('LightGBM Features (avg over folds)')
     plt.tight_layout()
     plt.savefig('lgbm_importances.png')
@@ -186,51 +187,24 @@ def save_importance_graph(feature_importance_df):
     return best_features
 
 
-def train(x, y, lgb_params,
-          train_size=100,
-          early_stopping_rounds=50, 
-          num_round=50,
-          random_state=19930201,
-          drop_columns=[],
-          categorical_columns=[]):
-    x_train, x_validation = x.iloc[:train_size, :], x.iloc[train_size:, :]
-    y_train, y_validation = y[:train_size], y[train_size:]
+def train_and_predict_test_for_pipeline(
+        train_dataset, test_dataset, feature_pipeline, lgb_params, model_name, id_col, predict_col_name,
+        predict_method='binary',
+        train_size=600,
+        early_stopping_rounds=50,
+        num_round=50,
+        random_state=19930201,
+        drop_columns=[],
+        categorical_columns=[]):
+    X_train_dataset, X_valid_dataset = split_dataset(train_dataset, train_size)
 
-    if drop_columns:
-        x_train.drop(drop_columns, axis=1, inplace=True)
-        x_validation.drop(drop_columns, axis=1, inplace=True)
+    print('create validation features...')
+    X_train, X_validation = feature_pipeline.run(X_train_dataset, X_valid_dataset)
+    y_train = X_train_dataset.target
+    y_validation = X_valid_dataset.target
 
-    x_train_columns = x_train.columns
-    trn_data = lgb.Dataset(x_train,
-                           label=y_train,
-                           categorical_feature=categorical_columns)
-    del x_train
-    del y_train
-    val_data = lgb.Dataset(x_validation,
-                           label=y_validation,
-                           categorical_feature=categorical_columns)
-    model = lgb.train(lgb_params,
-                      trn_data,
-                      num_round,
-                      valid_sets=[trn_data, val_data],
-                      verbose_eval=100,
-                      early_stopping_rounds=early_stopping_rounds
-                      )
-
-    predictions = model.predict(x_validation, num_iteration=model.best_iteration)
-    save_model(model, './output/models/')
-
-
-def train_and_predict_test(X, y, X_test, lgb_params, model_name, id_col, predict_col_name,
-                           predict_method='binary',
-                           train_size=600,
-                           early_stopping_rounds=50, 
-                           num_round=50,
-                           random_state=19930201,
-                           drop_columns=[],
-                           categorical_columns=[]):
-    X_train, X_validation = X.iloc[:train_size, :], X.iloc[train_size:, :]
-    y_train, y_validation = y[:train_size], y[train_size:]
+    print('test features...')
+    _, X_test = feature_pipeline.run(train_dataset, test_dataset)
 
     if drop_columns:
         X_train.drop(drop_columns, axis=1, inplace=True)
@@ -260,8 +234,21 @@ def train_and_predict_test(X, y, X_test, lgb_params, model_name, id_col, predict
     if predict_method == 'binary':
         predictions = [1 if predictions[i] >= 0.5 else 0 for i in range(len(predictions))]
 
+    feature_importance_df = pd.DataFrame()
+    feature_importance_df["feature"] = x_train_columns
+    feature_importance_df["importance"] = model.feature_importance(importance_type='gain')
+    # save_importance_graph(feature_importance_df)
+
     df_submit = pd.DataFrame()
     df_submit[id_col.name] = id_col
     df_submit[predict_col_name] = predictions
     save_model(model, './output/models/' + model_name + '_submit.ftr')
     output_csv(df_submit, './output/submits/' + model_name + '_submit.csv')
+
+    cols = (feature_importance_df[["feature", "importance"]]
+            .groupby("feature")
+            .mean()
+            .sort_values(by="importance", ascending=False)[:1000].index)
+
+    best_features = feature_importance_df.loc[feature_importance_df.feature.isin(cols)]
+    return best_features

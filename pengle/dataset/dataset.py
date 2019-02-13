@@ -40,6 +40,18 @@ class Dataset(dict):
         pass
 
 
+def split_dataset(dataset, train_size):
+    train, valid = dataset.data.iloc[:train_size, :].reset_index(
+        drop=True), dataset.data.iloc[train_size:, :].reset_index(drop=True)
+    new_train_dataset = Dataset(data=train,
+                                target_column=dataset.target_column,
+                                target=dataset.target[:train_size])
+    new_valid_dataset = Dataset(data=valid,
+                                target_column=dataset.target_column,
+                                target=dataset.target[train_size:])
+    return new_train_dataset, new_valid_dataset
+
+
 def load_data_and_save_feather(file_path, output_dir_path, dtypes):
     filename, _ = os.path.splitext(os.path.basename(file_path))
     cwd = Path.cwd()
@@ -59,7 +71,7 @@ def load_dataset(file_path, output_dir_path, objective,
     df = load_data_and_save_feather(file_path, output_dir_path, dtypes)
     df = reduce_mem_usage(df, verbose=True)
 
-    dataset = Dataset(filepath=file_path)
+    dataset = Dataset(file_path=file_path)
 
     if not target:
         dataset['data'] = df
@@ -71,7 +83,8 @@ def load_dataset(file_path, output_dir_path, objective,
         if encode_target:
             le = preprocessing.LabelEncoder()
             target_values = le.fit_transform(target_values).tolist()
-            classes = {target_values[i]: class_name for i, class_name in enumerate(le.classes_)}
+            classes = {target_values[i]: class_name for i,
+                       class_name in enumerate(le.classes_)}
             dataset['classes'] = classes
 
         df = df.drop(target, axis=1)
@@ -106,9 +119,11 @@ def load_features(features, dir_path='./output/features/'):
     """
     cwd = Path.cwd()
     dir_path = cwd / dir_path
-    dfs = [feather.read_dataframe((str(dir_path) + f'/{f}_train.ftr')) for f in features]
+    dfs = [feather.read_dataframe(
+        (str(dir_path) + f'/{f}_train.ftr')) for f in features]
     X_train = pd.concat(dfs, axis=1)
-    dfs = [feather.read_dataframe(str(dir_path) + f'/{f}_test.ftr') for f in features]
+    dfs = [feather.read_dataframe(
+        str(dir_path) + f'/{f}_test.ftr') for f in features]
     X_test = pd.concat(dfs, axis=1)
     return X_train, X_test
 
@@ -126,8 +141,9 @@ def reduce_mem_usage(df, verbose=True):
         [DataFrame] -- メモリ節約後のDataFrame
     """
 
-    numerics = ['int8', 'int16', 'int32', 'int64', 'float16', 'float32', 'float64']
-    start_mem = df.memory_usage(deep=True).sum() / 1024**2    
+    numerics = ['int8', 'int16', 'int32',
+                'int64', 'float16', 'float32', 'float64']
+    start_mem = df.memory_usage(deep=True).sum() / 1024**2
     for col in df.columns:
         col_type = df[col].dtypes
         if col_type in numerics:
@@ -141,14 +157,14 @@ def reduce_mem_usage(df, verbose=True):
                 elif c_min > np.iinfo(np.int32).min and c_max < np.iinfo(np.int32).max:
                     df[col] = df[col].astype(np.int32)
                 elif c_min > np.iinfo(np.int64).min and c_max < np.iinfo(np.int64).max:
-                    df[col] = df[col].astype(np.int64)  
+                    df[col] = df[col].astype(np.int64)
             else:
                 if c_min > np.finfo(np.float16).min and c_max < np.finfo(np.float16).max:
                     df[col] = df[col].astype(np.float16)
                 elif c_min > np.finfo(np.float32).min and c_max < np.finfo(np.float32).max:
                     df[col] = df[col].astype(np.float32)
                 else:
-                    df[col] = df[col].astype(np.float64)    
+                    df[col] = df[col].astype(np.float64)
     end_mem = df.memory_usage(deep=True).sum() / 1024**2
     if verbose:
         print('Mem. usage decreased to {:5.2f} Mb ({:.1f}% reduction)'.format(
