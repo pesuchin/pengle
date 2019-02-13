@@ -43,6 +43,7 @@ class Feature(metaclass=ABCMeta):
         self.test_path = Path(self.dir) / f'{self.name}_test.ftr'
         self.prefix = prefix
         self.suffix = suffix
+        self.task_name = 'Feature'
 
     def fit(self, train_dataset, test_dataset):
         with timer(self.name):
@@ -94,6 +95,7 @@ class Preprocessor(metaclass=ABCMeta):
         self.test_path = Path(self.dir) / f'{self.name}_test.ftr'
         self.prefix = prefix
         self.suffix = suffix
+        self.task_name = 'Preprocessor'
 
     def fit(self, train_dataset, test_dataset):
         with timer(self.name):

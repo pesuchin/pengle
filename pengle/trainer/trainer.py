@@ -1,5 +1,4 @@
 import pandas as pd
-from pengle.transformer.base import Feature, Preprocessor
 
 
 class FeaturePipeline():
@@ -24,12 +23,12 @@ class FeaturePipeline():
     def run(self, train_dataset, test_dataset):
         all_train = train_dataset.data
         all_test = test_dataset.data
-        # TODO: Preprocessorの場合の処理とFeatureの場合の処理を上手く区別する方法を考える
         for feature_class in self.steps:
-            if feature_class.__bases__[0] == Preprocessor:
-                train_dataset.data, test_dataset.data = feature_class.fit(
+            # FIXME: もっとスマートにタスクの区別をする方法があれば修正
+            if feature_class.task_name == 'Preprocessor':
+                train_dataset, test_dataset = feature_class.fit(
                     train_dataset, test_dataset).transform(save=self.save_feature)
-            elif feature_class.__bases__[0] == Feature:
+            elif feature_class.task_name == 'Feature':
                 train, test = feature_class.fit(train_dataset, test_dataset).transform(save=self.save_feature)
 
                 all_train = pd.concat([all_train, train], axis=1)
