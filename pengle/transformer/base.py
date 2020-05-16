@@ -35,8 +35,11 @@ class Feature(metaclass=ABCMeta):
         NotImplementedError -- 継承して実装されていない場合にraiseされるエラー
 
     """
-
-    def __init__(self, prefix='', suffix='', dir='./output/features/'):
+    def __init__(self,
+                 columns,
+                 prefix='',
+                 suffix='',
+                 dir='./output/features/'):
         self.name = self.__class__.__name__
         self.dir = dir
         self.train_path = Path(self.dir) / f'{self.name}_train.ftr'
@@ -44,38 +47,52 @@ class Feature(metaclass=ABCMeta):
         self.prefix = prefix
         self.suffix = suffix
         self.task_name = 'Feature'
+        self.columns = columns
 
-    def fit(self, train_dataset, test_dataset):
+    def set_target_column(self, target_column):
+        if target_column in self.columns:
+            raise ValueError('[Error] 説明変数に目的変数が入っています。')
+        self.target_column = target_column
+
+    def fit(self, df_train: pd.DataFrame, df_test: pd.DataFrame):
         with timer(self.name):
             self.train = pd.DataFrame()
             self.test = pd.DataFrame()
-            self.create_features(train_dataset, test_dataset)
+            self.create_features(df_train, df_test)
             prefix = self.prefix + '_' if self.prefix else ''
             suffix = '_' + self.suffix if self.suffix else ''
-            self.train.columns = [prefix + column + suffix for column in self.train.columns]
-            self.test.columns = [prefix + column + suffix for column in self.test.columns]
+            self.train.columns = [
+                prefix + column + suffix for column in self.train.columns
+            ]
+            self.test.columns = [
+                prefix + column + suffix for column in self.test.columns
+            ]
         return self
 
     @abstractmethod
-    def create_features(self):
+    def create_features(self, df_train: pd.DataFrame, df_test: pd.DataFrame):
         raise NotImplementedError
 
     def transform(self, save=False):
         if save:
-            self.train.to_feather(str(self.train_path))
-            self.test.to_feather(str(self.test_path))
+            self.train.reset_index(drop=True).to_feather(str(self.train_path))
+            self.test.reset_index(drop=True).to_feather(str(self.test_path))
         return self.train, self.test
 
-    def fit_transform(self, train_dataset, test_dataset, save=False):
-        self.train, self.test = self.fit(train_dataset, test_dataset).transform(save=save)
+    def fit_transform(self,
+                      df_train: pd.DataFrame,
+                      df_test: pd.DataFrame,
+                      save=False):
+        self.train, self.test = self.fit(df_train,
+                                         df_test).transform(save=save)
         return self.train, self.test
 
 
-class Preprocessor(metaclass=ABCMeta):
+class FeatureOverwriter(metaclass=ABCMeta):
     """前処理クラスのベースになるクラス。継承して使う。
 
     例)
-    >>> class ComplementMissingValue(Preprocessor):
+    >>> class ComplementMissingValue(FeatureOverwriter):
     >>>     def apply(self):
     >>>         for column in self.columns:
     >>>         agg_result = self.agg_func(train_dataset.data[column])
@@ -87,31 +104,45 @@ class Preprocessor(metaclass=ABCMeta):
         NotImplementedError -- 継承して実装されていない場合にraiseされるエラー
 
     """
-
-    def __init__(self, prefix='', suffix='', dir='./output/features/'):
+    def __init__(self,
+                 columns,
+                 prefix='',
+                 suffix='',
+                 dir='./output/features/'):
         self.name = self.__class__.__name__
         self.dir = dir
         self.train_path = Path(self.dir) / f'{self.name}_train.ftr'
         self.test_path = Path(self.dir) / f'{self.name}_test.ftr'
         self.prefix = prefix
         self.suffix = suffix
-        self.task_name = 'Preprocessor'
+        self.task_name = 'FeatureOverwriter'
+        self.columns = columns
 
-    def fit(self, train_dataset, test_dataset):
+    def set_target_column(self, target_column):
+        if target_column in self.columns:
+            raise ValueError('[Error] 説明変数に目的変数が入っています。')
+        self.target_column = target_column
+
+    def fit(self, df_train: pd.DataFrame, df_test: pd.DataFrame):
         with timer(self.name):
-            self.train_dataset, self.test_dataset = self.apply(train_dataset, test_dataset)
+            self.df_train, self.df_test = self.apply(df_train, df_test)
         return self
 
     @abstractmethod
-    def apply(self):
+    def apply(self, df_train, df_test):
         raise NotImplementedError
 
     def transform(self, save=False):
         if save:
-            self.train_dataset.to_feather(str(self.train_path))
-            self.test_dataset.to_feather(str(self.test_path))
-        return self.train_dataset, self.test_dataset
+            self.df_train.reset_index(drop=True).to_feather(
+                str(self.train_path))
+            self.df_test.reset_index(drop=True).to_feather(str(self.test_path))
+        return self.df_train, self.df_test
 
-    def fit_transform(self, train_dataset, test_dataset, save=False):
-        self.train_dataset, self.test_dataset = self.fit(train_dataset, test_dataset).transform(save=save)
-        return self.train_dataset, self.test_dataset
+    def fit_transform(self,
+                      df_train: pd.DataFrame,
+                      df_test: pd.DataFrame,
+                      save=False):
+        self.df_train, self.df_test = self.fit(df_train,
+                                               df_test).transform(save=save)
+        return self.df_train, self.df_test
